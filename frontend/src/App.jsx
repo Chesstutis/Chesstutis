@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Landing  from './pages/Landing';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <h1 className="bg-blue-600 w-full">all</h1>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+      </Routes>
+    </BrowserRouter>
+  );a
 }
 
-export default App
+export default App;
