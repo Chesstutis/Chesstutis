@@ -159,6 +159,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
         [saveSession],
     );
 
+    const updateUser = useCallback((user: AuthUser) => {
+        setSession((currentSession) => {
+            if (!currentSession) return currentSession;
+
+            const nextSession = { ...currentSession, user };
+            const storedSession: StoredAuthSession = {
+                version: 1,
+                ...nextSession,
+            };
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(storedSession));
+            return nextSession;
+        });
+    }, []);
+
     const logout = useCallback(async () => {
         const token = session?.token;
         clearSession();
@@ -183,6 +198,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 token: session?.token ?? null,
                 login,
                 signup,
+                updateUser,
                 logout,
             }}
         >

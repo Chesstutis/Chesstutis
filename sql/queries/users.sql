@@ -7,7 +7,19 @@ VALUES (
 )
 RETURNING *;
 
--- -- name: UpdateUser :one
+-- name: ChangeChessComUsername :one
+UPDATE users 
+    SET chess_com_username = $1,
+        updated_at = NOW()
+    WHERE id = $2
+RETURNING *;
+
+-- name: ChangePassword :one
+UPDATE users 
+    SET password_hash = $1,
+        updated_at = NOW()
+    WHERE id = $2
+RETURNING *;
 
 -- name: DeleteUser :one
 DELETE FROM users
