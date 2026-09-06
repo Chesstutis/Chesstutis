@@ -13,7 +13,8 @@ import (
 
 const changeChessComUsername = `-- name: ChangeChessComUsername :one
 UPDATE users 
-    SET chess_com_username = $1
+    SET chess_com_username = $1,
+        updated_at = NOW()
     WHERE id = $2
 RETURNING id, email, password_hash, chess_com_username, created_at, updated_at
 `
@@ -39,7 +40,8 @@ func (q *Queries) ChangeChessComUsername(ctx context.Context, arg ChangeChessCom
 
 const changePassword = `-- name: ChangePassword :one
 UPDATE users 
-    SET password_hash = $1
+    SET password_hash = $1,
+        updated_at = NOW()
     WHERE id = $2
 RETURNING id, email, password_hash, chess_com_username, created_at, updated_at
 `

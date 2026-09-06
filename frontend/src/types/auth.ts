@@ -43,6 +43,7 @@ export type AuthContextValue = {
     token: string | null;
     login: (credentials: loginReq) => Promise<void>;
     signup: (credentials: signupReq) => Promise<void>;
+    updateUser: (user: AuthUser) => void;
     logout: () => Promise<void>;
 };
 

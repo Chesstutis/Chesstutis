@@ -9,13 +9,15 @@ RETURNING *;
 
 -- name: ChangeChessComUsername :one
 UPDATE users 
-    SET chess_com_username = $1
+    SET chess_com_username = $1,
+        updated_at = NOW()
     WHERE id = $2
 RETURNING *;
 
 -- name: ChangePassword :one
 UPDATE users 
-    SET password_hash = $1
+    SET password_hash = $1,
+        updated_at = NOW()
     WHERE id = $2
 RETURNING *;
 

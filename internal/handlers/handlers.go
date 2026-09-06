@@ -201,8 +201,8 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	expiresAt := time.Now().UTC().Add(time.Hour * 24 * 60)
 	_, err = h.Queries.CreateRefreshToken(r.Context(), db.CreateRefreshTokenParams{
-		TokenHash:  tokenHash,
-		UserID: user.ID,
+		TokenHash: tokenHash,
+		UserID:    user.ID,
 		ExpiresAt: pgtype.Timestamptz{
 			Time:  expiresAt,
 			Valid: true,
@@ -316,8 +316,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	expiresAt := time.Now().UTC().Add(time.Hour * 24 * 60)
 	_, err = h.Queries.CreateRefreshToken(r.Context(), db.CreateRefreshTokenParams{
-		TokenHash:  tokenHash,
-		UserID: userInfo.ID,
+		TokenHash: tokenHash,
+		UserID:    userInfo.ID,
 		ExpiresAt: pgtype.Timestamptz{
 			Time:  expiresAt,
 			Valid: true,
@@ -529,18 +529,41 @@ func (h *Handler) PatchMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.Queries.DeleteUser(r.Context(), userId)
+	var req requests.UpdateChessComUsernameReq
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	req.ChessComUsername = strings.TrimSpace(req.ChessComUsername)
+	if req.ChessComUsername == "" {
+		http.Error(w, "chess.com username is required", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.Queries.ChangeChessComUsername(r.Context(), db.ChangeChessComUsernameParams{
+		ChessComUsername: req.ChessComUsername,
+		ID:               userId,
+	})
 	if err != nil {
+		slog.Error(
+			"error updating chess.com username",
+			"request_id", middleware.GetReqID(r.Context()),
+			"err", err,
+		)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	res := Me{
-		ID: user.ID,
-		Email: user.Email,
+		ID:               user.ID,
+		Email:            user.Email,
 		ChessComUsername: user.ChessComUsername,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
 	}
 
 	data, err := json.Marshal(res)
@@ -548,7 +571,7 @@ func (h *Handler) PatchMe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-		
+
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
 }
@@ -567,11 +590,11 @@ func (h *Handler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := Me{
-		ID: user.ID,
-		Email: user.Email,
+		ID:               user.ID,
+		Email:            user.Email,
 		ChessComUsername: user.ChessComUsername,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
 	}
 
 	data, err := json.Marshal(res)
@@ -585,11 +608,81 @@ func (h *Handler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.UserIDFromContext(r.Context())
+	userId, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
+	var req requests.ChangePasswordReq
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
 
+	if err := decoder.Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.CurrentPassword == "" {
+		http.Error(w, "current password is required", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.NewPassword) < 8 {
+		http.Error(w, "new password must contain at least 8 characters", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.Queries.GetUserById(r.Context(), userId)
+	if err != nil {
+		slog.Error(
+			"error fetching user for password change",
+			"request_id", middleware.GetReqID(r.Context()),
+			"err", err,
+		)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	validPassword, err := auth.CheckPasswordHash(req.CurrentPassword, user.PasswordHash)
+	if err != nil {
+		slog.Error(
+			"error checking password for password change",
+			"request_id", middleware.GetReqID(r.Context()),
+			"err", err,
+		)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if !validPassword {
+		http.Error(w, "current password is incorrect", http.StatusUnauthorized)
+		return
+	}
+
+	passwordHash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		slog.Error(
+			"error hashing new password",
+			"request_id", middleware.GetReqID(r.Context()),
+			"err", err,
+		)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := h.Queries.ChangePassword(r.Context(), db.ChangePasswordParams{
+		PasswordHash: passwordHash,
+		ID:           userId,
+	}); err != nil {
+		slog.Error(
+			"error updating password",
+			"request_id", middleware.GetReqID(r.Context()),
+			"err", err,
+		)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
